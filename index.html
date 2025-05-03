@@ -11,11 +11,12 @@
     input, button, textarea { width: 100%; margin: 8px 0; padding: 8px; box-sizing: border-box; }
     textarea { height: 120px; }
     ul { list-style: none; padding: 0; }
-    li { margin: 6px 0; }
+    li { margin: 10px 0; display: flex; align-items: center; }
+    li img { margin-right: 10px; border-radius: 6px; }
   </style>
 </head>
 <body>
-  <h2>YouTube 영상 오래된 순으로 불러오기 & 재생목록 추가</h2>
+  <h2>YouTube 영상 불러오기 & 재생목록 추가</h2>
 
   <input id="channelId" placeholder="채널 ID 입력 (예: UC_x5XG1OV2P6uZZ5FSM9Ttw)" />
   <button onclick="loadVideos()">영상 불러오기</button>
@@ -31,10 +32,10 @@
 
   <script>
     const apiKey = "AIzaSyC29ZNxxQ4sVqokPzZrVxLCYsOmToPDwUs";
-    const clientId = "938294569584-amj2vuae1ohla2kpotgu21c6i1u8snmp.apps.googleusercontent.com";
+    const clientId = "938294569584-voit8acemt68ot5pbhsgns5hi8o9g2qm.apps.googleusercontent.com";
     const scopes = "https://www.googleapis.com/auth/youtube";
     let accessToken = null;
-    let videoIds = [];
+    let videoItems = [];
     let displayedCount = 0;
     const batchSize = 10;
     let tokenClient;
@@ -86,12 +87,16 @@
         } while (next);
 
         videos.reverse();
-        videoIds = videos.map(v => v.snippet.resourceId.videoId);
+        videoItems = videos.map(v => ({
+          id: v.snippet.resourceId.videoId,
+          title: v.snippet.title,
+          thumb: v.snippet.thumbnails.default.url
+        }));
 
         videoList.innerHTML = '';
         showNextBatch();
-        videoUrls.value = videoIds.map(id => `https://www.youtube.com/watch?v=${id}`).join('\n');
-        if (videoIds.length > batchSize) loadMoreBtn.style.display = 'block';
+        videoUrls.value = videoItems.map(v => `https://www.youtube.com/watch?v=${v.id}`).join('\n');
+        if (videoItems.length > batchSize) loadMoreBtn.style.display = 'block';
       } catch (e) {
         alert("영상 불러오기 실패: " + e.message);
       }
@@ -99,15 +104,15 @@
 
     function showNextBatch() {
       const videoList = document.getElementById("videoList");
-      const nextBatch = videoIds.slice(displayedCount, displayedCount + batchSize);
-      for (const id of nextBatch) {
-        const url = `https://www.youtube.com/watch?v=${id}`;
+      const nextBatch = videoItems.slice(displayedCount, displayedCount + batchSize);
+      for (const v of nextBatch) {
         const li = document.createElement('li');
-        li.innerHTML = `<a href="${url}" target="_blank">${url}</a>`;
+        li.innerHTML = `<a href="https://www.youtube.com/watch?v=${v.id}" target="_blank">` +
+          `<img src="${v.thumb}" width="120" alt="썸네일"> ${v.title}</a>`;
         videoList.appendChild(li);
       }
       displayedCount += batchSize;
-      if (displayedCount >= videoIds.length) {
+      if (displayedCount >= videoItems.length) {
         document.getElementById("loadMoreBtn").style.display = 'none';
       }
     }
@@ -133,7 +138,7 @@
         });
         const playlistId = playlistRes.result.id;
 
-        for (const videoId of videoIds) {
+        for (const video of videoItems) {
           await gapi.client.youtube.playlistItems.insert({
             part: "snippet",
             resource: {
@@ -141,7 +146,7 @@
                 playlistId: playlistId,
                 resourceId: {
                   kind: "youtube#video",
-                  videoId: videoId
+                  videoId: video.id
                 }
               }
             }
