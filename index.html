@@ -1,67 +1,117 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>YouTube 채널 영상 정렬기</title>
+  <title>YouTube 재생목록 자동 추가기</title>
+  <script src="https://apis.google.com/js/api.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 700px; margin: auto; }
-    input, button, textarea { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; }
-    ul { list-style: none; padding: 0; }
-    li { margin: 8px 0; }
+    body { font-family: sans-serif; max-width: 720px; margin: auto; padding: 20px; }
+    input, button, textarea { width: 100%; margin: 8px 0; padding: 8px; box-sizing: border-box; }
     textarea { height: 120px; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 6px 0; }
   </style>
 </head>
 <body>
-  <h2>YouTube 채널 영상 (오래된 순)</h2>
-  <input type="text" id="channelId" placeholder="채널 ID 입력 (예: UC_x5XG1OV2P6uZZ5FSM9Ttw)">
-  <button onclick="fetchVideos()">영상 불러오기</button>
+  <h2>YouTube 영상 불러오기 & 재생목록 추가</h2>
 
+  <input id="channelId" placeholder="채널 ID 입력 (예: UC_x5XG1OV2P6uZZ5FSM9Ttw)" />
+  <button onclick="loadVideos()">영상 불러오기</button>
   <ul id="videoList"></ul>
-  <h3>복사해서 재생목록에 붙여넣기</h3>
-  <textarea id="playlistLinks" readonly></textarea>
+  <textarea id="videoUrls" readonly></textarea>
+
+  <hr>
+
+  <button onclick="authenticate()">Google 로그인</button>
+  <input id="playlistTitle" placeholder="새 재생목록 이름 입력" />
+  <button onclick="createPlaylistAndAddVideos()">재생목록 생성 + 영상 추가</button>
 
   <script>
     const apiKey = "AIzaSyC29ZNxxQ4sVqokPzZrVxLCYsOmToPDwUs";
+    const clientId = "YOUR_CLIENT_ID_HERE"; // Google Cloud OAuth 2.0 Client ID
+    const scopes = "https://www.googleapis.com/auth/youtube";
+    let videoIds = [];
 
-    async function fetchVideos() {
-      const channelId = document.getElementById('channelId').value.trim();
-      const videoList = document.getElementById('videoList');
-      const playlistLinks = document.getElementById('playlistLinks');
-      videoList.innerHTML = '<li>로딩 중...</li>';
-      playlistLinks.value = '';
+    function authenticate() {
+      gapi.load("client:auth2", async () => {
+        await gapi.auth2.init({ client_id: clientId });
+        await gapi.auth2.getAuthInstance().signIn();
+        await gapi.client.load("youtube", "v3");
+        alert("인증 완료!");
+      });
+    }
+
+    async function loadVideos() {
+      const channelId = document.getElementById("channelId").value.trim();
+      const videoList = document.getElementById("videoList");
+      const videoUrls = document.getElementById("videoUrls");
+      videoList.innerHTML = '<li>불러오는 중...</li>';
+      videoUrls.value = '';
 
       try {
-        const uploadsPlaylist = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`)
-          .then(res => res.json())
-          .then(data => data.items[0].contentDetails.relatedPlaylists.uploads);
+        const playlistId = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`)
+          .then(r => r.json())
+          .then(d => d.items[0].contentDetails.relatedPlaylists.uploads);
 
-        let videos = [];
-        let nextPageToken = '';
+        let videos = [], next = '';
         do {
-          const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylist}&maxResults=50&pageToken=${nextPageToken}&key=${apiKey}`;
-          const res = await fetch(url).then(r => r.json());
+          const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}&pageToken=${next}&key=${apiKey}`)
+            .then(r => r.json());
           videos = videos.concat(res.items);
-          nextPageToken = res.nextPageToken;
-        } while (nextPageToken);
+          next = res.nextPageToken;
+        } while (next);
 
-        videoList.innerHTML = '';
         videos.reverse();
-
-        let allLinks = [];
-        videos.forEach(item => {
-          const title = item.snippet.title;
-          const videoId = item.snippet.resourceId.videoId;
-          const url = `https://www.youtube.com/watch?v=${videoId}`;
+        videoIds = videos.map(v => v.snippet.resourceId.videoId);
+        videoList.innerHTML = '';
+        videoIds.forEach(id => {
+          const url = `https://www.youtube.com/watch?v=${id}`;
           const li = document.createElement('li');
-          li.innerHTML = `<a href="${url}" target="_blank">${title}</a>`;
+          li.innerHTML = `<a href="${url}" target="_blank">${url}</a>`;
           videoList.appendChild(li);
-          allLinks.push(url);
         });
+        videoUrls.value = videoIds.map(id => `https://www.youtube.com/watch?v=${id}`).join('\n');
 
-        playlistLinks.value = allLinks.join('\n');
+      } catch (e) {
+        alert("영상 불러오기 실패: " + e.message);
+      }
+    }
 
-      } catch (err) {
-        videoList.innerHTML = `<li>에러 발생: ${err.message}</li>`;
+    async function createPlaylistAndAddVideos() {
+      const title = document.getElementById("playlistTitle").value.trim();
+      if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
+        alert("Google 로그인이 필요합니다.");
+        return;
+      }
+
+      try {
+        const playlistRes = await gapi.client.youtube.playlists.insert({
+          part: "snippet,status",
+          resource: {
+            snippet: { title: title },
+            status: { privacyStatus: "private" }
+          }
+        });
+        const playlistId = playlistRes.result.id;
+
+        for (const videoId of videoIds) {
+          await gapi.client.youtube.playlistItems.insert({
+            part: "snippet",
+            resource: {
+              snippet: {
+                playlistId: playlistId,
+                resourceId: {
+                  kind: "youtube#video",
+                  videoId: videoId
+                }
+              }
+            }
+          });
+        }
+        alert("재생목록이 생성되고 영상이 추가되었습니다!");
+      } catch (e) {
+        alert("재생목록 추가 실패: " + e.message);
       }
     }
   </script>
