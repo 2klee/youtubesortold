@@ -13,7 +13,7 @@
 </head>
 <body>
   <h2>YouTube 채널 영상 (오래된 순)</h2>
-  <input type="text" id="channelInput" placeholder="채널 ID 또는 사용자명 입력 (예: UC_x5XG1OV2P6uZZ5FSM9Ttw 또는 GoogleDevelopers)">
+  <input type="text" id="channelId" placeholder="채널 ID 입력 (예: UC_x5XG1OV2P6uZZ5FSM9Ttw)">
   <button onclick="fetchVideos()">영상 불러오기</button>
 
   <ul id="videoList"></ul>
@@ -23,25 +23,14 @@
   <script>
     const apiKey = "AIzaSyC29ZNxxQ4sVqokPzZrVxLCYsOmToPDwUs";
 
-    async function fetchChannelId(input) {
-      if (input.startsWith('UC')) return input;
-
-      const url = `https://www.googleapis.com/youtube/v3/channels?part=id&forUsername=${input}&key=${apiKey}`;
-      const res = await fetch(url).then(r => r.json());
-      if (!res.items || res.items.length === 0) throw new Error('채널을 찾을 수 없습니다. 정확한 사용자명을 입력하세요.');
-      return res.items[0].id;
-    }
-
     async function fetchVideos() {
-      const channelInput = document.getElementById('channelInput').value.trim();
+      const channelId = document.getElementById('channelId').value.trim();
       const videoList = document.getElementById('videoList');
       const playlistLinks = document.getElementById('playlistLinks');
       videoList.innerHTML = '<li>로딩 중...</li>';
       playlistLinks.value = '';
 
       try {
-        const channelId = await fetchChannelId(channelInput);
-
         const uploadsPlaylist = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`)
           .then(res => res.json())
           .then(data => data.items[0].contentDetails.relatedPlaylists.uploads);
