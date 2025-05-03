@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <title>YouTube 재생목록 자동 추가기</title>
   <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body { font-family: sans-serif; max-width: 720px; margin: auto; padding: 20px; }
     input, button, textarea { width: 100%; margin: 8px 0; padding: 8px; box-sizing: border-box; }
@@ -29,17 +30,33 @@
 
   <script>
     const apiKey = "AIzaSyC29ZNxxQ4sVqokPzZrVxLCYsOmToPDwUs";
-    const clientId = "938294569584-amj2vuae1ohla2kpotgu21c6i1u8snmp.apps.googleusercontent.com";
+    const clientId = "938294569584-voit8acemt68ot5pbhsgns5hi8o9g2qm.apps.googleusercontent.com";
     const scopes = "https://www.googleapis.com/auth/youtube";
+    let accessToken = null;
     let videoIds = [];
+    let tokenClient;
+
+    window.onload = () => {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: scopes,
+        callback: (tokenResponse) => {
+          if (tokenResponse && tokenResponse.access_token) {
+            accessToken = tokenResponse.access_token;
+            gapi.load("client", async () => {
+              await gapi.client.init({ apiKey });
+              await gapi.client.load("youtube", "v3");
+              alert("인증 완료!");
+            });
+          } else {
+            alert("인증 실패");
+          }
+        }
+      });
+    }
 
     function authenticate() {
-      gapi.load("client:auth2", async () => {
-        await gapi.auth2.init({ client_id: clientId });
-        await gapi.auth2.getAuthInstance().signIn();
-        await gapi.client.load("youtube", "v3");
-        alert("인증 완료!");
-      });
+      tokenClient.requestAccessToken();
     }
 
     async function loadVideos() {
@@ -80,7 +97,7 @@
 
     async function createPlaylistAndAddVideos() {
       const title = document.getElementById("playlistTitle").value.trim();
-      if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
+      if (!accessToken) {
         alert("Google 로그인이 필요합니다.");
         return;
       }
