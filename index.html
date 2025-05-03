@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <title>YouTube 채널 영상 정렬기</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    input, button { padding: 8px; margin: 5px 0; width: 100%; }
+    body { font-family: sans-serif; padding: 20px; max-width: 700px; margin: auto; }
+    input, button, textarea { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; }
     ul { list-style: none; padding: 0; }
-    li { margin: 10px 0; }
+    li { margin: 8px 0; }
+    textarea { height: 120px; }
   </style>
 </head>
 <body>
@@ -15,14 +16,19 @@
   <input type="text" id="channelId" placeholder="채널 ID 입력 (예: UC_x5XG1OV2P6uZZ5FSM9Ttw)">
   <input type="text" id="apiKey" placeholder="YouTube API 키 입력">
   <button onclick="fetchVideos()">영상 불러오기</button>
+
   <ul id="videoList"></ul>
+  <h3>복사해서 재생목록에 붙여넣기</h3>
+  <textarea id="playlistLinks" readonly></textarea>
 
   <script>
     async function fetchVideos() {
       const channelId = document.getElementById('channelId').value;
       const apiKey = document.getElementById('apiKey').value;
       const videoList = document.getElementById('videoList');
+      const playlistLinks = document.getElementById('playlistLinks');
       videoList.innerHTML = '<li>로딩 중...</li>';
+      playlistLinks.value = '';
 
       try {
         const uploadsPlaylist = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`)
@@ -39,14 +45,20 @@
         } while (nextPageToken);
 
         videoList.innerHTML = '';
-        videos.reverse().forEach(item => {
+        videos.reverse();
+
+        let allLinks = [];
+        videos.forEach(item => {
           const title = item.snippet.title;
           const videoId = item.snippet.resourceId.videoId;
           const url = `https://www.youtube.com/watch?v=${videoId}`;
           const li = document.createElement('li');
           li.innerHTML = `<a href="${url}" target="_blank">${title}</a>`;
           videoList.appendChild(li);
+          allLinks.push(url);
         });
+
+        playlistLinks.value = allLinks.join('\n');
 
       } catch (err) {
         videoList.innerHTML = `<li>에러 발생: ${err.message}</li>`;
