@@ -20,6 +20,7 @@
   <input id="channelId" placeholder="채널 ID 입력 (예: UC_x5XG1OV2P6uZZ5FSM9Ttw)" />
   <button onclick="loadVideos()">영상 불러오기</button>
   <ul id="videoList"></ul>
+  <button id="loadMoreBtn" onclick="loadMoreVideos()" style="display:none;">더 보기</button>
   <textarea id="videoUrls" readonly></textarea>
 
   <hr>
@@ -34,6 +35,8 @@
     const scopes = "https://www.googleapis.com/auth/youtube";
     let accessToken = null;
     let videoIds = [];
+    let displayedCount = 0;
+    const batchSize = 10;
     let tokenClient;
 
     window.onload = () => {
@@ -63,8 +66,11 @@
       const channelId = document.getElementById("channelId").value.trim();
       const videoList = document.getElementById("videoList");
       const videoUrls = document.getElementById("videoUrls");
+      const loadMoreBtn = document.getElementById("loadMoreBtn");
       videoList.innerHTML = '<li>불러오는 중...</li>';
       videoUrls.value = '';
+      loadMoreBtn.style.display = 'none';
+      displayedCount = 0;
 
       try {
         const playlistId = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`)
@@ -81,18 +87,33 @@
 
         videos.reverse();
         videoIds = videos.map(v => v.snippet.resourceId.videoId);
-        videoList.innerHTML = '';
-        videoIds.forEach(id => {
-          const url = `https://www.youtube.com/watch?v=${id}`;
-          const li = document.createElement('li');
-          li.innerHTML = `<a href="${url}" target="_blank">${url}</a>`;
-          videoList.appendChild(li);
-        });
-        videoUrls.value = videoIds.map(id => `https://www.youtube.com/watch?v=${id}`).join('\n');
 
+        videoList.innerHTML = '';
+        showNextBatch();
+        videoUrls.value = videoIds.map(id => `https://www.youtube.com/watch?v=${id}`).join('\n');
+        if (videoIds.length > batchSize) loadMoreBtn.style.display = 'block';
       } catch (e) {
         alert("영상 불러오기 실패: " + e.message);
       }
+    }
+
+    function showNextBatch() {
+      const videoList = document.getElementById("videoList");
+      const nextBatch = videoIds.slice(displayedCount, displayedCount + batchSize);
+      for (const id of nextBatch) {
+        const url = `https://www.youtube.com/watch?v=${id}`;
+        const li = document.createElement('li');
+        li.innerHTML = `<a href="${url}" target="_blank">${url}</a>`;
+        videoList.appendChild(li);
+      }
+      displayedCount += batchSize;
+      if (displayedCount >= videoIds.length) {
+        document.getElementById("loadMoreBtn").style.display = 'none';
+      }
+    }
+
+    function loadMoreVideos() {
+      showNextBatch();
     }
 
     async function createPlaylistAndAddVideos() {
