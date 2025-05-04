@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -20,7 +19,7 @@
 <body>
   <h2>YouTube 영상 오래된 순 불러오기 & 재생목록 추가</h2>
 
-  <input id="channelId" placeholder="채널 ID 입력 (예: UC_x5XG1OV2P6uZZ5FSM9Ttw)" />
+  <input id="channelInput" placeholder="채널 주소 또는 ID 입력 (예: https://www.youtube.com/@Google)" />
   <button onclick="loadVideos()">영상 불러오기</button>
   <ul id="videoList"></ul>
   <button id="loadMoreBtn" onclick="loadMoreVideos()" style="display:none;">더 보기</button>
@@ -65,8 +64,27 @@
       tokenClient.requestAccessToken();
     }
 
+    async function extractChannelId(input) {
+      input = input.trim();
+      if (input.startsWith("UC")) return input;
+
+      const usernameMatch = input.match(/youtube\.com\/@([\w\-]+)/);
+      const channelIdMatch = input.match(/youtube\.com\/channel\/(UC[\w\-]+)/);
+
+      if (channelIdMatch) return channelIdMatch[1];
+      if (usernameMatch) {
+        const username = usernameMatch[1];
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=id&forUsername=${username}&key=${apiKey}`);
+        const data = await res.json();
+        if (data.items.length > 0) return data.items[0].id;
+        else throw new Error("해당 사용자 이름의 채널을 찾을 수 없습니다.");
+      }
+
+      throw new Error("올바른 유튜브 채널 주소 또는 ID를 입력하세요.");
+    }
+
     async function loadVideos() {
-      const channelId = document.getElementById("channelId").value.trim();
+      const input = document.getElementById("channelInput").value;
       const videoList = document.getElementById("videoList");
       const videoUrls = document.getElementById("videoUrls");
       const loadMoreBtn = document.getElementById("loadMoreBtn");
@@ -76,6 +94,7 @@
       displayedCount = 0;
 
       try {
+        const channelId = await extractChannelId(input);
         const playlistId = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`)
           .then(r => r.json())
           .then(d => d.items[0].contentDetails.relatedPlaylists.uploads);
@@ -110,7 +129,7 @@
       for (const v of nextBatch) {
         const li = document.createElement('li');
         li.innerHTML = `<a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" style="display:flex;align-items:flex-start;">` +
-          `<img src="${v.thumb}" width="120" alt="썸네일"> <span>${v.title}</span></a>`;
+          `<img src="${v.thumb}" width="120" alt="썸네일"> <span style="margin-top: 4px;">${v.title}</span></a>`;
         videoList.appendChild(li);
       }
       displayedCount += batchSize;
