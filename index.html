@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -19,7 +20,7 @@
 <body>
   <h2>YouTube 영상 오래된 순 불러오기 & 재생목록 추가</h2>
 
-  <input id="channelId" placeholder="채널명 입력 (예: @xiae3067)" />
+  <input id="channelId" placeholder="채널 ID 입력 (예: UC_x5XG1OV2P6uZZ5FSM9Ttw)" />
   <button onclick="loadVideos()">영상 불러오기</button>
   <ul id="videoList"></ul>
   <button id="loadMoreBtn" onclick="loadMoreVideos()" style="display:none;">더 보기</button>
@@ -64,36 +65,8 @@
       tokenClient.requestAccessToken();
     }
 
-    // @사용자명으로 채널 ID 찾기
-    async function getChannelIdByUsername(username) {
-      const apiKey = "AIzaSyC29ZNxxQ4sVqokPzZrVxLCYsOmToPDwUs"; // 유튜브 API 키
-
-      // 유튜브의 search API를 사용해 채널명 검색
-      const response = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${username}&key=${apiKey}`);
-      const data = await response.json();
-
-      if (data.items && data.items.length > 0) {
-        return data.items[0].snippet.channelId; // 채널 ID 반환
-      } else {
-        throw new Error("채널을 찾을 수 없습니다.");
-      }
-    }
-
     async function loadVideos() {
-      const userInput = document.getElementById("channelId").value.trim();
-      let channelId = userInput;
-
-      // @사용자명 형식일 때 채널 ID 찾기
-      if (userInput.startsWith('@')) {
-        try {
-          channelId = await getChannelIdByUsername(userInput.substring(1)); // @제거하고 채널 ID 찾기
-          alert(`채널 ID: ${channelId} 로 검색`);
-        } catch (error) {
-          alert("채널을 찾을 수 없습니다.");
-          return;
-        }
-      }
-
+      const channelId = document.getElementById("channelId").value.trim();
       const videoList = document.getElementById("videoList");
       const videoUrls = document.getElementById("videoUrls");
       const loadMoreBtn = document.getElementById("loadMoreBtn");
